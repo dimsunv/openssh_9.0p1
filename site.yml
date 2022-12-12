@@ -1,0 +1,63 @@
+---
+- name: Update Openssh
+  hosts: all
+  become: yes
+  tasks:
+    - name: Finding _key files
+      find:
+        paths: "/etc/ssh"
+        patterns: "ssh_host_*_key"
+      register: key_result
+
+    - name: Change _key files ownership, group and permissions
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        mode: '0600'
+      with_items: "{{ key_result.files }}"
+
+    - name: backup sshd_config
+      ansible.builtin.copy:
+        src: "/etc/ssh/sshd_config"
+        dest: "/etc/ssh/sshd_config.bak"
+
+    - name: backup sshd
+      ansible.builtin.copy:
+        src: "/etc/pam.d/sshd"
+        dest: "/etc/pam.d/sshd.bak"
+
+    - name: create build directory
+      file:
+        path: "{{rpm_dir}}"
+        state: directory
+
+    - name: copy files
+      ansible.posix.synchronize:
+        src: ./files/openssh_9.0/
+        dest: "{{rpm_dir}}"
+
+    - name: Install RPM
+      ansible.builtin.command: "rpm -Uvh {{rpm_dir}}/*.rpm"
+
+    - name: Create new configs | sshd
+      ansible.builtin.template:
+        src: sshd.j2
+        dest: /etc/pam.d/sshd
+
+    - name: Create new configs | sshd_config
+      ansible.builtin.template:
+        src: sshd_config.j2
+        dest: /etc/ssh/sshd_config
+
+    - name: restart sshd
+      ansible.builtin.service:
+        name: sshd
+        state: restarted
+
+    - name: copy ssh_copy
+      ansible.builtin.copy:
+        src: "{{rpm_dir}}/ssh-copy-id"
+        dest: "/usr/bin/ssh-copy-id"
+        owner: root
+        group: root
+        mode: '0755'
+        remote_src: true
