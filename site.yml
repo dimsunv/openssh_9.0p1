@@ -19,11 +19,13 @@
       ansible.builtin.copy:
         src: "/etc/ssh/sshd_config"
         dest: "/etc/ssh/sshd_config.bak"
+        remote_src: true
 
     - name: backup sshd
       ansible.builtin.copy:
         src: "/etc/pam.d/sshd"
         dest: "/etc/pam.d/sshd.bak"
+        remote_src: true
 
     - name: create build directory
       file:
@@ -31,9 +33,14 @@
         state: directory
 
     - name: copy files
-      ansible.posix.synchronize:
-        src: ./files/openssh_9.0/
+      ansible.builtin.copy:
+        src: "./files/openssh_9.0/{{item}}"
         dest: "{{rpm_dir}}"
+      with_items:
+        - openssh-9.0p1-1.el8.x86_64.rpm
+        - openssh-clients-9.0p1-1.el8.x86_64.rpm
+        - openssh-server-9.0p1-1.el8.x86_64.rpm
+        - ssh-copy-id
 
     - name: Install RPM
       ansible.builtin.command: "rpm -Uvh {{rpm_dir}}/*.rpm"
@@ -53,7 +60,7 @@
         name: sshd
         state: restarted
 
-    - name: copy ssh_copy
+    - name: copy ssh_copy_id
       ansible.builtin.copy:
         src: "{{rpm_dir}}/ssh-copy-id"
         dest: "/usr/bin/ssh-copy-id"
